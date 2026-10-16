@@ -1,0 +1,13 @@
+{
+  "name": "autotitle",
+  "displayName": "Autotitle",
+  "version": "0.1.0",
+  "description": "Propone e applica nomi leggibili alle conversazioni, con il costo medio in dollari per chat.",
+  "author": "golgoth85",
+  "icon": "icon.svg",
+  "type": "module",
+  "slot": "tab",
+  "entry": "dist/index.js",
+  "server": "dist/server.js",
+  "permissions": []
+}

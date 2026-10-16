@@ -1,0 +1,17 @@
+{
+  "name": "cloudcli-plugin-autotitle",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "tsc && node --test \"dist/**/*.test.js\""
+  },
+  "devDependencies": {
+    "@types/jsdom": "^30.0.0",
+    "@types/node": "^20.0.0",
+    "jsdom": "^26.1.0",
+    "typescript": "^5.5.0"
+  }
+}

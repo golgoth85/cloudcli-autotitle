@@ -1,0 +1,5 @@
+#!/usr/bin/env node
+// Finto `claude -p` per la verifica nel browser: risponde sempre con lo stesso titolo e un costo fisso.
+process.stdin.resume();
+process.stdin.on('data', () => {});
+process.stdin.on('end', () => console.log(JSON.stringify({ result: '"Rotazione log nginx notturna."', total_cost_usd: 0.0031, usage: { input_tokens: 400, output_tokens: 20 } })));
