@@ -164,6 +164,9 @@ export function mount(container: HTMLElement, api: PluginAPI): void {
     await appFetch(`/api/providers/sessions/${encodeURIComponent(p.sessionId)}`, { method: 'PUT', body: JSON.stringify({ summary: p.proposed }) });
     state = await rpc<StateResponse>('POST', 'applied', { sessionId: p.sessionId, title: p.proposed, previous: p.current, source: p.source });
     proposals = proposals.filter((x) => x.sessionId !== p.sessionId);
+    // Aggiorna localmente la sessione rinominata, così la sidebar di CloudCLI si vede aggiornata
+    const ref = refsById.get(p.sessionId);
+    if (ref) ref.title = p.proposed;
   }
 
   async function applyMany(list: Proposal[]): Promise<void> {
@@ -171,7 +174,15 @@ export function mount(container: HTMLElement, api: PluginAPI): void {
     for (const p of [...list]) {
       try { await applyOne(p); done += 1; } catch (e) { error = e instanceof Error ? e.message : String(e); break; }
     }
-    if (done) summary = `${done} chat rinominate.`;
+    if (done) {
+      summary = `${done} chat rinominate.`;
+      // Dopo un attimo, ricarica l'elenco sessioni per aggiornare la sidebar di CloudCLI (non avviene automaticamente via REST)
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      try {
+        const conversations = await listConversations();
+        refsById = new Map(conversations.map((c) => [c.sessionId, { sessionId: c.sessionId, provider: c.provider, title: c.sessionTitle, projectName: c.projectDisplayName }]));
+      } catch { /* continua comunque */ }
+    }
   }
 
   async function undo(entry: AppliedEntry): Promise<void> {
@@ -180,6 +191,14 @@ export function mount(container: HTMLElement, api: PluginAPI): void {
     try {
       await appFetch(`/api/providers/sessions/${encodeURIComponent(entry.sessionId)}`, { method: 'PUT', body: JSON.stringify({ summary: entry.previous || entry.sessionId }) });
       state = await rpc<StateResponse>('POST', 'undone', { sessionId: entry.sessionId });
+      // Aggiorna localmente e ricarica l'elenco sessioni
+      const ref = refsById.get(entry.sessionId);
+      if (ref) ref.title = entry.previous || entry.sessionId;
+      await new Promise(resolve => setTimeout(resolve, 500));
+      try {
+        const conversations = await listConversations();
+        refsById = new Map(conversations.map((c) => [c.sessionId, { sessionId: c.sessionId, provider: c.provider, title: c.sessionTitle, projectName: c.projectDisplayName }]));
+      } catch { /* continua comunque */ }
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     } finally {
