@@ -52,7 +52,7 @@ const renames = []; let rpcSawAuth = false;
     const url = new URL(req.url, 'http://x');
     if (url.pathname === '/') { res.writeHead(200, { 'content-type': 'text/html' }); return res.end(pageHtml(url.searchParams.get('login') !== '0')); }
     if (url.pathname === '/plugin.js') { res.writeHead(200, { 'content-type': 'text/javascript' }); return res.end(fs.readFileSync(path.join(DIST, 'index.js'))); }
-    if (url.pathname.startsWith('/rpc/')) {
+    if (url.pathname === '/rpc/excerpt-from-messages') { if (req.headers.authorization !== `Bearer ${TOKEN}`) return json(res, { error: 'no' }, 401); let raw = ''; req.on('data', d => raw += d); req.on('end', async () => { const p = http.request({ host: '127.0.0.1', port, path: '/excerpt-from-messages', method: 'POST', headers: req.headers }, r => { res.writeHead(r.statusCode, r.headers); r.pipe(res); }); p.write(raw); p.end(); }); return; } if (url.pathname.startsWith('/rpc/')) {
       if (req.headers.authorization) rpcSawAuth = true;
       const p = http.request({ host: '127.0.0.1', port, path: '/' + req.url.slice(5), method: req.method, headers: req.headers }, r => { res.writeHead(r.statusCode, r.headers); r.pipe(res); });
       return req.pipe(p);

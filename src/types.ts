@@ -2,13 +2,14 @@
 
 export type TitleSource = 'ai-title' | 'haiku';
 
-/** Sessione come la descrive l'elenco recente di CloudCLI, più l'id nativo se già noto. */
+/** Sessione come la descrive l'elenco recente di CloudCLI, più l'id nativo se già noto e l'excerpt per Codex/OpenCode. */
 export interface SessionRef {
   sessionId: string;
   nativeId?: string;
   provider: string;
   title: string;
   projectName: string;
+  excerpt?: string;
 }
 
 export type ProposalStatus = 'proposal' | 'ok' | 'manual' | 'unsupported' | 'need-native' | 'no-transcript' | 'deferred' | 'error';
@@ -71,4 +72,9 @@ export interface StateResponse {
 export interface ProposeResponse {
   proposals: Proposal[];
   error?: string;
+}
+
+/** Dati per Codex/OpenCode: i messaggi vengono letti via API, non dal file JSONL. */
+export interface SessionWithMessages extends SessionRef {
+  messages?: unknown;
 }

@@ -101,6 +101,18 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, stateResponse());
     }
 
+    if (route === 'POST /excerpt-from-messages') {
+      const body = (await readBody(req)) as { messages?: unknown };
+      if (!Array.isArray(body.messages)) return fail(res, 'Dati messaggi non validi.');
+      const { excerptFromMessages } = await import('./transcript.js');
+      const excerpt = excerptFromMessages(body.messages);
+      if (!excerpt) return fail(res, 'Chat vuota.');
+      try {
+        const { generateTitle } = await import('./generator.js');
+        const generated = await generateTitle(excerpt);
+        return send(res, 200, { title: generated.title, costUsd: generated.costUsd, inputTokens: generated.inputTokens, outputTokens: generated.outputTokens });
+      } catch (error) { return fail(res, error instanceof Error ? error.message : String(error)); }
+    }
     return send(res, 404, { error: 'Non trovato.' });
   } catch (error) {
     return fail(res, error instanceof Error ? error.message : String(error));

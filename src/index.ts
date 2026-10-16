@@ -109,7 +109,17 @@ export function mount(container: HTMLElement, api: PluginAPI): void {
       let firstError = '';
       const refs = [...refsById.values()];
       for (let i = 0; i < refs.length; i += BATCH) {
-        let batch = (await rpc<ProposeResponse>('POST', 'propose', { sessions: refs.slice(i, i + BATCH) })).proposals;
+        const batchRefs = refs.slice(i, i + BATCH);
+        // Per Codex/OpenCode: leggi i messaggi e calcola l'excerpt
+        for (const r of batchRefs) {
+          if (r.provider !== 'claude') {
+            try {
+              const msgData = (await appFetch(`/api/providers/sessions/${encodeURIComponent(r.sessionId)}/messages?limit=20`)) as { messages?: unknown };
+              r.excerpt = msgData.messages ? typeof msgData.messages === 'string' ? msgData.messages : JSON.stringify(msgData.messages) : '';
+            } catch { /* nessun excerpt */ }
+          }
+        }
+        let batch = (await rpc<ProposeResponse>('POST', 'propose', { sessions: batchRefs })).proposals;
         // Le sessioni nate da CloudCLI hanno un id diverso da quello del transcript: si chiede quello nativo e si riprova.
         const need = batch.filter((p) => p.status === 'need-native');
         if (need.length) {

@@ -1,5 +1,5 @@
 import { isDefaultName } from './policy.js';
-import { findTranscript, readTranscript } from './transcript.js';
+import { excerptFromMessages, findTranscript, readTranscript } from './transcript.js';
 import type { Generated } from './generator.js';
 import type { Proposal, SessionRef, Settings } from './types.js';
 import type { State } from './store.js';
@@ -33,9 +33,23 @@ export async function propose(refs: SessionRef[], state: State, settings: Settin
   for (const ref of refs) {
     const out = base(ref);
     results.set(ref.sessionId, out);
-    if (ref.provider !== 'claude') { out.status = 'unsupported'; continue; }
     // Già rinominata dal plugin (anche se poi annullata): non si ripropone né si ripaga.
     if (handled.has(ref.sessionId)) { out.status = 'ok'; continue; }
+
+    // Per Codex/OpenCode: usa l'excerpt se passato, altrimenti unsupported
+    if (ref.provider !== 'claude') {
+      const excerpt = ref.excerpt;
+      if (!excerpt) { out.status = 'unsupported'; continue; }
+      const cached = state.cache[ref.sessionId];
+      if (cached) {
+        Object.assign(out, { status: 'proposal', proposed: cached.title, source: cached.source, costUsd: cached.costUsd });
+        continue;
+      }
+      if (haikuLeft <= 0) { out.status = 'deferred'; continue; }
+      haikuLeft -= 1;
+      toGenerate.push({ ref, excerpt });
+      continue;
+    }
     const nativeId = ref.nativeId ?? ref.sessionId;
     const file = find(nativeId);
     if (!file) { out.status = ref.nativeId ? 'no-transcript' : 'need-native'; continue; }

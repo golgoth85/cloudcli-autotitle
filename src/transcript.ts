@@ -88,3 +88,26 @@ export function findTranscript(nativeId: string, root = projectsRoot()): string 
 export function readTranscript(file: string, sessionId: string): TranscriptInfo {
   return parseTranscript(fs.readFileSync(file, 'utf8'), sessionId);
 }
+
+/** Estrae excerpt dai messaggi di Codex/OpenCode via API. Tollerante a formato variabile. */
+export function excerptFromMessages(messages: unknown): string {
+  if (!Array.isArray(messages)) return '';
+  const turns: string[] = [];
+  for (const msg of messages.slice(0, MAX_MESSAGES)) {
+    if (!msg || typeof msg !== 'object') continue;
+    const m = msg as Record<string, unknown>;
+    const role = m.role as string | undefined;
+    if (!role || !['user', 'assistant'].includes(role)) continue;
+    let body = '';
+    if (typeof m.content === 'string') body = squash(m.content);
+    else if (Array.isArray(m.content)) {
+      const texts = (m.content as unknown[])
+        .filter((block): block is { type: string; text: string } => !!block && typeof block === 'object' && (block as Record<string, unknown>).type === 'text')
+        .map((b) => b.text);
+      body = squash(texts.join(' '));
+    }
+    if (!body || (role === 'user' && isNoise(body))) continue;
+    turns.push(`${role === 'user' ? 'Utente' : 'Assistente'}: ${body.slice(0, MAX_MESSAGE_CHARS)}`);
+  }
+  return turns.join('\n').slice(0, MAX_EXCERPT_CHARS);
+}
