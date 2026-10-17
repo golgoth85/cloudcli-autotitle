@@ -3,7 +3,7 @@ import { generateTitle } from './generator.js';
 import { propose } from './propose.js';
 import { parseRefs } from './refs.js';
 import { cleanTitle } from './policy.js';
-import { computeStats, loadState, saveState, MAX_APPLIED } from './store.js';
+import { computeStats, loadState, recordOutcomes, saveState, MAX_APPLIED } from './store.js';
 import type { AppliedEntry, StateResponse } from './types.js';
 
 const MAX_BODY = 1_000_000;
@@ -59,6 +59,7 @@ const server = http.createServer(async (req, res) => {
       const state = loadState();
       const proposals = await propose(refs, state, state.settings, { generate: (excerpt) => generateTitle(excerpt) });
       saveState(state);
+      recordOutcomes(proposals.map((p, i) => ({ sessionId: p.sessionId, provider: refs[i].provider, current: p.current, status: p.status, detail: p.detail ?? '' })));
       return send(res, 200, { proposals });
     }
 

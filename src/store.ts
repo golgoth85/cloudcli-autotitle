@@ -70,3 +70,19 @@ export function computeStats(state: Pick<State, 'runs' | 'applied'>): Stats {
     avgCostPerRenamedChatUsd: all ? round(total / all) : 0,
   };
 }
+
+export interface Outcome { sessionId: string; provider: string; current: string; status: string; detail: string; at: string }
+const MAX_OUTCOMES = 500;
+const outcomesFile = (): string => path.join(dataDir(), 'last-analysis.json');
+
+/** Esito dell'ultima analisi per ogni chat (nome attuale, stato, motivo): serve a capire perché una chat resta com'è. */
+export function recordOutcomes(items: Omit<Outcome, 'at'>[], at = new Date().toISOString()): void {
+  let map: Record<string, Outcome> = {};
+  try { map = JSON.parse(fs.readFileSync(outcomesFile(), 'utf8')) as Record<string, Outcome>; } catch { /* primo salvataggio */ }
+  for (const item of items) map[item.sessionId] = { ...item, at };
+  const kept = Object.values(map).sort((a, b) => a.at.localeCompare(b.at)).slice(-MAX_OUTCOMES);
+  fs.mkdirSync(dataDir(), { recursive: true, mode: 0o700 });
+  const tmp = `${outcomesFile()}.tmp`;
+  fs.writeFileSync(tmp, `${JSON.stringify(Object.fromEntries(kept.map((o) => [o.sessionId, o])), null, 2)}\n`, { mode: 0o600 });
+  fs.renameSync(tmp, outcomesFile());
+}
