@@ -1,12 +1,12 @@
 import http from 'node:http';
 import { generateTitle } from './generator.js';
 import { propose } from './propose.js';
+import { parseRefs } from './refs.js';
 import { cleanTitle } from './policy.js';
 import { computeStats, loadState, saveState, MAX_APPLIED } from './store.js';
-import type { AppliedEntry, SessionRef, StateResponse } from './types.js';
+import type { AppliedEntry, StateResponse } from './types.js';
 
 const MAX_BODY = 1_000_000;
-const MAX_SESSIONS_PER_CALL = 100;
 
 function send(res: http.ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { 'content-type': 'application/json' });
@@ -32,17 +32,6 @@ function readBody(req: http.IncomingMessage): Promise<unknown> {
 }
 
 const str = (value: unknown): string => (typeof value === 'string' ? value : '');
-
-function parseRefs(body: unknown): SessionRef[] {
-  const list = (body as { sessions?: unknown })?.sessions;
-  if (!Array.isArray(list)) throw new Error('Elenco sessioni mancante.');
-  return list.slice(0, MAX_SESSIONS_PER_CALL).flatMap((item): SessionRef[] => {
-    const row = item as Record<string, unknown>;
-    const sessionId = str(row.sessionId);
-    if (!sessionId) return [];
-    return [{ sessionId, nativeId: str(row.nativeId) || undefined, provider: str(row.provider), title: str(row.title), projectName: str(row.projectName) }];
-  });
-}
 
 function stateResponse(): StateResponse {
   const state = loadState();
@@ -101,23 +90,6 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, stateResponse());
     }
 
-    if (route === 'POST /excerpt-from-messages') {
-      const body = (await readBody(req)) as { messages?: unknown };
-      let msgs = body.messages;
-      // Se è una stringa (JSON stringificato dal client), parsala
-      if (typeof msgs === 'string') {
-        try { msgs = JSON.parse(msgs); } catch { return fail(res, 'Messaggi non in formato valido.'); }
-      }
-      if (!Array.isArray(msgs)) return fail(res, `Dati messaggi non validi (tipo: ${typeof msgs}).`);
-      const { excerptFromMessages } = await import('./transcript.js');
-      const excerpt = excerptFromMessages(msgs);
-      if (!excerpt) return fail(res, 'Chat vuota.');
-      try {
-        const { generateTitle } = await import('./generator.js');
-        const generated = await generateTitle(excerpt);
-        return send(res, 200, { title: generated.title, costUsd: generated.costUsd, inputTokens: generated.inputTokens, outputTokens: generated.outputTokens });
-      } catch (error) { return fail(res, error instanceof Error ? error.message : String(error)); }
-    }
     return send(res, 404, { error: 'Non trovato.' });
   } catch (error) {
     return fail(res, error instanceof Error ? error.message : String(error));

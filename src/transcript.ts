@@ -89,25 +89,19 @@ export function readTranscript(file: string, sessionId: string): TranscriptInfo 
   return parseTranscript(fs.readFileSync(file, 'utf8'), sessionId);
 }
 
-/** Estrae excerpt dai messaggi di Codex/OpenCode via API. Tollerante a formato variabile. */
-export function excerptFromMessages(messages: unknown): string {
-  if (!Array.isArray(messages)) return '';
+/** Messaggio di testo come lo restituisce CloudCLI per gli agenti senza transcript JSONL (Codex, OpenCode). */
+export interface ChatMessage { role: string; content: string }
+
+/** Primo messaggio dell'utente e testo compatto dei primi scambi, da messaggi già ridotti a ruolo e testo. */
+export function parseMessages(messages: ChatMessage[]): Pick<TranscriptInfo, 'firstUserText' | 'excerpt'> {
+  let firstUserText: string | null = null;
   const turns: string[] = [];
-  for (const msg of messages.slice(0, MAX_MESSAGES)) {
-    if (!msg || typeof msg !== 'object') continue;
-    const m = msg as Record<string, unknown>;
-    const role = m.role as string | undefined;
-    if (!role || !['user', 'assistant'].includes(role)) continue;
-    let body = '';
-    if (typeof m.content === 'string') body = squash(m.content);
-    else if (Array.isArray(m.content)) {
-      const texts = (m.content as unknown[])
-        .filter((block): block is { type: string; text: string } => !!block && typeof block === 'object' && (block as Record<string, unknown>).type === 'text')
-        .map((b) => b.text);
-      body = squash(texts.join(' '));
-    }
-    if (!body || (role === 'user' && isNoise(body))) continue;
-    turns.push(`${role === 'user' ? 'Utente' : 'Assistente'}: ${body.slice(0, MAX_MESSAGE_CHARS)}`);
+  for (const message of messages) {
+    if (turns.length >= MAX_MESSAGES) break;
+    const body = squash(message.content);
+    if (!body || (message.role === 'user' && isNoise(body))) continue;
+    if (message.role === 'user' && firstUserText === null) firstUserText = body;
+    turns.push(`${message.role === 'user' ? 'Utente' : 'Assistente'}: ${body.slice(0, MAX_MESSAGE_CHARS)}`);
   }
-  return turns.join('\n').slice(0, MAX_EXCERPT_CHARS);
+  return { firstUserText, excerpt: turns.join('\n').slice(0, MAX_EXCERPT_CHARS) };
 }

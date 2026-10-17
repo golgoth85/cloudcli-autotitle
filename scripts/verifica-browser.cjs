@@ -31,10 +31,18 @@ const sessions = [
   { sessionId: ID(1), provider: 'claude', projectDisplayName: 'prova', sessionTitle: 'Come configuro il reverse proxy per Immich dietro...' },
   { sessionId: ID(2), provider: 'claude', projectDisplayName: 'prova', sessionTitle: 'Scrivi uno script che ruota i log di nginx...' },
   { sessionId: ID(3), provider: 'claude', projectDisplayName: 'prova', sessionTitle: 'Il mio nome scelto a mano' },
-  { sessionId: 'app-0000-4000-8000-000000000004', provider: 'codex', projectDisplayName: 'altro', sessionTitle: 'Sessione di un altro agente' },
+  { sessionId: 'app-0000-4000-8000-000000000004', provider: 'codex', projectDisplayName: 'altro', sessionTitle: 'Si può fare in' },
+  { sessionId: 'app-0000-4000-8000-000000000006', provider: 'codex', projectDisplayName: 'altro', sessionTitle: 'Nome Codex scelto a mano' },
   { sessionId: 'app-0000-4000-8000-000000000005', provider: 'claude', projectDisplayName: 'prova', sessionTitle: 'Perché il container Frigate riavvia in continuazione...' },
 ];
 const ORIGINAL = sessions.map(s => s.sessionTitle);
+const CODEX = [
+  { kind: 'text', role: 'user', content: 'Si può fare in modo che i nuovi titoli si vedano senza ricaricare la pagina?' },
+  { kind: 'tool_use', toolName: 'Bash', toolInput: { command: 'ls' } },
+  { kind: 'thinking', content: 'ragionamento interno' },
+  { kind: 'text', role: 'assistant', content: 'Sì: dopo ogni rinomina si rilegge l\'elenco delle chat.' },
+];
+const messageCalls = [];
 const renames = []; let rpcSawAuth = false;
 
 (async () => {
@@ -60,6 +68,13 @@ const renames = []; let rpcSawAuth = false;
     if (url.pathname.startsWith('/api/')) {
       if (req.headers.authorization !== `Bearer ${TOKEN}`) return json(res, { error: 'no' }, 401);
       if (url.pathname === '/api/providers/sessions/recent') return json(res, { success: true, data: { conversations: sessions, total: sessions.length, hasMore: false } });
+      const mm = /^\/api\/providers\/sessions\/([^/]+)\/messages$/.exec(url.pathname);
+      if (mm) {
+        const limit = Number(url.searchParams.get('limit')), offset = Number(url.searchParams.get('offset') || 0);
+        messageCalls.push({ limit, offset });
+        const end = CODEX.length - offset, page = CODEX.slice(Math.max(0, end - limit), end);
+        return json(res, { success: true, data: { messages: page, total: CODEX.length, hasMore: false, offset, limit } });
+      }
       const m = /^\/api\/providers\/sessions\/([^/]+)(\/provider-id)?$/.exec(url.pathname);
       if (m && m[2]) return json(res, { success: true, data: { sessionId: m[1].endsWith('5') ? ID(5) : null } });
       if (m && req.method === 'PUT') {
@@ -115,6 +130,7 @@ const renames = []; let rpcSawAuth = false;
     await ctx.close();
   }
   console.log(JSON.stringify(report, null, 1));
+  console.log('Richieste ai messaggi (limit/offset):', JSON.stringify(messageCalls.slice(0, 4)));
   console.log('Il token di login è arrivato al server del plugin:', rpcSawAuth);
   const st = JSON.parse(fs.readFileSync(path.join(HOME, '.cloudcli-autotitle/state.json'), 'utf8'));
   console.log('Stato del plugin: rinomine', st.applied.length, '| chiamate Haiku registrate', st.runs.length, '| file stato permessi', (fs.statSync(path.join(HOME, '.cloudcli-autotitle/state.json')).mode & 0o777).toString(8));

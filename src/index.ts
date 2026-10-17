@@ -31,6 +31,7 @@ const AUTO_EVERY_MS = 5 * 60_000;
 const MAX_SESSIONS = 300;
 const PAGE = 100;
 const BATCH = 50;
+const FIRST_MESSAGES = 12;
 
 const STYLE = `
 .atl{font:14px/1.45 system-ui,sans-serif;padding:16px;max-width:880px;margin:0 auto}
@@ -95,6 +96,21 @@ export function mount(container: HTMLElement, api: PluginAPI): void {
     return all;
   }
 
+  /** Primi messaggi di testo di una chat. CloudCLI pagina dalla coda: una richiesta per il totale, una per l'inizio. */
+  async function firstMessages(sessionId: string): Promise<{ role: string; content: string }[]> {
+    const base = `/api/providers/sessions/${encodeURIComponent(sessionId)}/messages`;
+    try {
+      const head = (await appFetch(`${base}?limit=1`)) as { total?: number };
+      const total = typeof head.total === 'number' ? head.total : 0;
+      const page = (await appFetch(`${base}?limit=${FIRST_MESSAGES}&offset=${Math.max(0, total - FIRST_MESSAGES)}`)) as { messages?: { kind?: string; role?: string; content?: unknown }[] };
+      return (page.messages ?? [])
+        .filter((m) => m.kind === 'text' && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+        .map((m) => ({ role: m.role as string, content: m.content as string }));
+    } catch {
+      return [];
+    }
+  }
+
   async function analyze(): Promise<void> {
     if (busy) return;
     busy = true;
@@ -110,15 +126,8 @@ export function mount(container: HTMLElement, api: PluginAPI): void {
       const refs = [...refsById.values()];
       for (let i = 0; i < refs.length; i += BATCH) {
         const batchRefs = refs.slice(i, i + BATCH);
-        // Per Codex/OpenCode: leggi i messaggi e calcola l'excerpt
-        for (const r of batchRefs) {
-          if (r.provider !== 'claude') {
-            try {
-              const msgData = (await appFetch(`/api/providers/sessions/${encodeURIComponent(r.sessionId)}/messages?limit=20`)) as { messages?: unknown };
-              r.excerpt = msgData.messages ? typeof msgData.messages === 'string' ? msgData.messages : JSON.stringify(msgData.messages) : '';
-            } catch { /* nessun excerpt */ }
-          }
-        }
+        // Codex/OpenCode: il server non ha i loro transcript, si leggono i primi messaggi da CloudCLI.
+        for (const r of batchRefs) if (r.provider !== 'claude') r.messages = await firstMessages(r.sessionId);
         let batch = (await rpc<ProposeResponse>('POST', 'propose', { sessions: batchRefs })).proposals;
         // Le sessioni nate da CloudCLI hanno un id diverso da quello del transcript: si chiede quello nativo e si riprova.
         const need = batch.filter((p) => p.status === 'need-native');

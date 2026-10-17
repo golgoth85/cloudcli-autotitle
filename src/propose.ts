@@ -1,5 +1,5 @@
 import { isDefaultName } from './policy.js';
-import { excerptFromMessages, findTranscript, readTranscript } from './transcript.js';
+import { findTranscript, parseMessages, readTranscript } from './transcript.js';
 import type { Generated } from './generator.js';
 import type { Proposal, SessionRef, Settings } from './types.js';
 import type { State } from './store.js';
@@ -36,18 +36,20 @@ export async function propose(refs: SessionRef[], state: State, settings: Settin
     // Già rinominata dal plugin (anche se poi annullata): non si ripropone né si ripaga.
     if (handled.has(ref.sessionId)) { out.status = 'ok'; continue; }
 
-    // Per Codex/OpenCode: usa l'excerpt se passato, altrimenti unsupported
+    // Codex/OpenCode: niente transcript sul disco del plugin, il browser manda i primi messaggi.
     if (ref.provider !== 'claude') {
-      const excerpt = ref.excerpt;
-      if (!excerpt) { out.status = 'unsupported'; continue; }
-      const cached = state.cache[ref.sessionId];
-      if (cached) {
-        Object.assign(out, { status: 'proposal', proposed: cached.title, source: cached.source, costUsd: cached.costUsd });
+      if (!ref.messages?.length) { out.status = 'unsupported'; out.detail = 'Messaggi non letti.'; continue; }
+      const chat = parseMessages(ref.messages);
+      if (!chat.excerpt) { out.status = 'no-transcript'; out.detail = 'Chat ancora vuota.'; continue; }
+      if (!isDefaultName(ref.title, ref.sessionId, { firstUserText: chat.firstUserText, lastPrompt: null })) { out.status = 'manual'; continue; }
+      const cachedOther = state.cache[ref.sessionId];
+      if (cachedOther) {
+        Object.assign(out, { status: 'proposal', proposed: cachedOther.title, source: cachedOther.source, costUsd: cachedOther.costUsd });
         continue;
       }
       if (haikuLeft <= 0) { out.status = 'deferred'; continue; }
       haikuLeft -= 1;
-      toGenerate.push({ ref, excerpt });
+      toGenerate.push({ ref, excerpt: chat.excerpt });
       continue;
     }
     const nativeId = ref.nativeId ?? ref.sessionId;
