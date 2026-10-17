@@ -31,3 +31,10 @@ Il database di autenticazione di CloudCLI (cartella `~/.cloudcli`) contiene anch
 ## Regole
 - Sviluppo qui, non nella cartella dei plugin di CloudCLI. Un task = un branch.
 - Niente segreti in codice, log, commit, Issue. Tutto in italiano (interfaccia e documentazione); identificatori in inglese.
+
+## Zone delicate
+
+Toccare queste parti **non** si annulla con un semplice revert: prima backup o prova su una copia; se non basta, PR e review consigliata al proprietario (regola «Quanto rigore» in `/workspace/AGENTS.md`). Tutto il resto: si va dritti.
+- Rinomina delle chat: scrive nei nomi delle sessioni di CloudCLI via API, non si annulla in blocco; provare con il finto CloudCLI.
+- Costi: ogni titolo generato con Haiku si paga; logica di cache e di selezione delle chat (`src/policy.ts`).
+- Token del browser e database di CloudCLI: il database non si apre mai.
