@@ -103,9 +103,14 @@ const server = http.createServer(async (req, res) => {
 
     if (route === 'POST /excerpt-from-messages') {
       const body = (await readBody(req)) as { messages?: unknown };
-      if (!Array.isArray(body.messages)) return fail(res, 'Dati messaggi non validi.');
+      let msgs = body.messages;
+      // Se è una stringa (JSON stringificato dal client), parsala
+      if (typeof msgs === 'string') {
+        try { msgs = JSON.parse(msgs); } catch { return fail(res, 'Messaggi non in formato valido.'); }
+      }
+      if (!Array.isArray(msgs)) return fail(res, `Dati messaggi non validi (tipo: ${typeof msgs}).`);
       const { excerptFromMessages } = await import('./transcript.js');
-      const excerpt = excerptFromMessages(body.messages);
+      const excerpt = excerptFromMessages(msgs);
       if (!excerpt) return fail(res, 'Chat vuota.');
       try {
         const { generateTitle } = await import('./generator.js');
